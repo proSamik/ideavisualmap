@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"saas-server/database"
@@ -127,7 +128,7 @@ func main() {
 	mux.Handle("/admin/send-email", adminMiddleware.RequireAdmin(http.HandlerFunc(emailHandler.AdminSendEmailHandler)))
 
 	// Rate limiter for public endpoints (e.g., 5 requests per minute)
-	publicRateLimiter := middleware.NewRateLimiter(1 * time.Minute, 5)
+	publicRateLimiter := middleware.NewRateLimiter(1*time.Minute, 5)
 
 	// Contact form route - public, rate-limited only (no CSRF)
 	contactHandler := handlers.NewContactHandler()
@@ -146,6 +147,181 @@ func main() {
 
 	// Admin-only route to view all newsletter subscriptions
 	mux.Handle("/admin/newsletter", adminMiddleware.RequireAdmin(http.HandlerFunc(newsletterHandler.GetAllNewsletterSubscriptions)))
+
+	// Mind Map routes
+	mindMapHandler := handlers.NewMindMapHandler(db)
+	nodeHandler := handlers.NewNodeHandler(db)
+	edgeHandler := handlers.NewEdgeHandler(db)
+
+	// Mind Map routes (protected)
+	mux.Handle("/api/mindmaps", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			mindMapHandler.GetMindMaps(w, r)
+		case http.MethodPost:
+			mindMapHandler.CreateMindMap(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+
+	mux.Handle("/api/mindmaps/", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if strings.HasSuffix(path, "/nodes") {
+			// Handle /api/mindmaps/{id}/nodes
+			nodeHandler.GetNodesByMindMap(w, r)
+			return
+		} else if strings.HasSuffix(path, "/edges") {
+			// Handle /api/mindmaps/{id}/edges
+			edgeHandler.GetEdgesByMindMap(w, r)
+			return
+		} else if strings.HasSuffix(path, "/details") {
+			// Handle /api/mindmaps/{id}/details
+			mindMapHandler.GetMindMap(w, r)
+			return
+		}
+
+		// Handle /api/mindmaps/{id}
+		switch r.Method {
+		case http.MethodGet:
+			mindMapHandler.GetMindMap(w, r)
+		case http.MethodPut:
+			mindMapHandler.UpdateMindMap(w, r)
+		case http.MethodDelete:
+			mindMapHandler.DeleteMindMap(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+
+	// Node routes (protected)
+	mux.Handle("/api/nodes", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			nodeHandler.CreateNode(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+
+	mux.Handle("/api/nodes/positions", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			nodeHandler.BatchUpdateNodePositions(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+
+	mux.Handle("/api/nodes/", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			nodeHandler.GetNode(w, r)
+		case http.MethodPut:
+			nodeHandler.UpdateNode(w, r)
+		case http.MethodDelete:
+			nodeHandler.DeleteNode(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+
+	// Edge routes (protected)
+	mux.Handle("/api/edges", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			edgeHandler.CreateEdge(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+
+	mux.Handle("/api/edges/nodes", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodDelete:
+			edgeHandler.DeleteEdgeByNodes(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+
+	mux.Handle("/api/edges/", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			edgeHandler.GetEdge(w, r)
+		case http.MethodDelete:
+			edgeHandler.DeleteEdge(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+
+	// API Key routes (protected)
+	apiKeyHandler := handlers.NewAPIKeyHandler(db)
+	mux.Handle("/api/apikeys", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Log the authorization details for debugging
+		log.Printf("[API Keys] Request received: Method=%s, Path=%s, HasToken=%v",
+			r.Method, r.URL.Path, r.Context().Value("userID") != nil)
+
+		switch r.Method {
+		case http.MethodGet:
+			apiKeyHandler.GetAPIKeys(w, r)
+		case http.MethodPost:
+			apiKeyHandler.CreateAPIKey(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+
+	mux.Handle("/api/apikeys/service/", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Log the authorization details for debugging
+		log.Printf("[API Keys Service] Request received: Method=%s, Path=%s, HasToken=%v",
+			r.Method, r.URL.Path, r.Context().Value("userID") != nil)
+
+		switch r.Method {
+		case http.MethodGet:
+			apiKeyHandler.GetAPIKeyByService(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+
+	mux.Handle("/api/apikeys/", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Log the authorization details for debugging
+		log.Printf("[API Keys ID] Request received: Method=%s, Path=%s, HasToken=%v",
+			r.Method, r.URL.Path, r.Context().Value("userID") != nil)
+
+		switch r.Method {
+		case http.MethodGet:
+			apiKeyHandler.GetAPIKey(w, r)
+		case http.MethodPut:
+			apiKeyHandler.UpdateAPIKey(w, r)
+		case http.MethodDelete:
+			apiKeyHandler.DeleteAPIKey(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+
+	// Idea Generation routes (protected)
+	ideaGenerationHandler := handlers.NewIdeaGenerationHandler(db)
+	mux.Handle("/api/generate", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			ideaGenerationHandler.GenerateIdeas(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
+
+	mux.Handle("/api/generate/nodes", authMiddleware.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			ideaGenerationHandler.CreateNodesFromIdeas(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})))
 
 	// Analytics routes (protected)
 	mux.Handle("/admin/analytics/user-journey", adminMiddleware.RequireAdmin(http.HandlerFunc(analyticsHandler.GetUserJourney)))

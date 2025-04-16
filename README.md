@@ -1,17 +1,22 @@
-# Modern SaaS Platform
+# Visual Brainstorming Platform
 
-A full-stack SaaS (Software as a Service) platform built with Next.js and Go, featuring authentication, theme support, and a scalable architecture.
+A cloud-based SaaS platform that enables beginner solopreneurs to create visual mind maps for brainstorming ideas in targeted domains. Built with Next.js and Go, featuring AI-powered idea generation, drag-and-drop mind mapping, and a scalable architecture.
 
 ## Project Structure
 
-This project is organized into two main directories:
+This project is organized into three main directories:
 
 - `client/`: Next.js frontend application
 - `server/`: Go backend API
+- `admin-client/`: Next.js admin dashboard
 
 ## Features
 
-- 🔐 Secure authentication with email/password and Google OAuth
+- 🧠 AI-powered idea generation using OpenAI API
+- 🗺️ Visual mind maps with drag-and-drop interface
+- 🔑 Bring your own API key option for AI integration
+- 📤 Export options (PNG, PDF, JSON)
+- 🔐 Secure authentication with email/password and OAuth (Google, GitHub)
 - 🎨 Light/dark theme support
 - 🚀 Modern, responsive UI built with Tailwind CSS
 - 🔄 Real-time updates with toast notifications
@@ -20,6 +25,7 @@ This project is organized into two main directories:
 - 🔑 Password recovery functionality
 - 🔄 Session management
 - 👤 User profile management
+- 💰 Subscription management with LemonSqueezy
 
 ## Prerequisites
 
